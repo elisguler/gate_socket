@@ -72,6 +72,7 @@ def gate_socket_main():
             TCP_PORT = 6000
             BUFFER_SIZE = 1024
             SOCKET_TIMEOUT = 10
+            PERMITTED_IP_LIST = ['127.0.0.1','160.75.86.28']
             soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             soc.bind((TCP_IP, TCP_PORT))
@@ -83,6 +84,13 @@ def gate_socket_main():
                     conn, addr = soc.accept()
                     conn.settimeout(SOCKET_TIMEOUT)
                     logger.info('Connection started with: %s', addr)
+                    
+                    access_permit = True
+                    if (addr[0] not in PERMITTED_IP_LIST):
+                        access_permit = False
+                        conn.close()
+                        logger.warning('Unauthorized IP, connection closed')
+                        continue
 
                     soc_received = conn.recv(BUFFER_SIZE)
                     logger.info('Received: %s', soc_received.rstrip('\r\n'))
@@ -133,7 +141,7 @@ def gate_socket_main():
                             db.commit()
                             size = dbcur.rowcount
                             if (size == 0):
-                                dbcur.execute("INSERT INTO enterance_logs VALUES (NOW(),%s,%s,NULL);" %(person_id, enterance_permission))
+                                dbcur.execute("INSERT INTO enterance_logs VALUES (NOW(),%s,%s);" %(person_id, enterance_permission))
                                 db.commit()
                             soc_response += enterance_permission + '|' + greetingMessage()
                             if (len(name + ' ' + surname) <= 20):
@@ -149,7 +157,7 @@ def gate_socket_main():
                             db.commit()
                             size = dbcur.rowcount
                             if (size == 0):
-                                dbcur.execute("INSERT INTO enterance_logs VALUES (NOW(),-1,0,'%s');" %(requested_card))
+                                dbcur.execute("INSERT INTO enterance_logs VALUES (NOW(),-1,0);")
                                 db.commit()
                             soc_response += "F|" + greetingMessage() + "TANIMSIZ KART!"
                     elif soc_received.startswith("{add"):
@@ -160,59 +168,59 @@ def gate_socket_main():
                             dbcur.execute("INSERT INTO new_cards VALUES ('%s',NOW())" %(requested_card))
                             db.commit()
                             soc_response += "SUCCESS"
-                    elif soc_received.startswith("{all}"): 
-                        dbcur.execute("SELECT name, surname, card_data, enterance_permission FROM persons WHERE card_data IS NOT NULL ORDER BY enterance_permission DESC, name;")
-                        db.commit()
-                        persons = dbcur.fetchall()
-                        for person in persons:
-                            name = utoa(person[0].upper())
-                            surname = utoa(person[1].upper())
-                            card_data = utoa(person[2])
-                            enterance_permission = str(person[3])
-                            soc_response += '[' + name + ' ' + surname + '|' + card_data + '|' + enterance_permission + ']'
-                    elif soc_received.startswith("{list["):
-                        dbcur.execute("SELECT name, surname, card_data, enterance_permission FROM persons WHERE card_data IS NOT NULL ORDER BY enterance_permission DESC, name;")
-                        db.commit()
-                        size = dbcur.rowcount
-                        order = int(soc_received.split("[")[1].split("]")[0])
-                        if size <= order:
-                            soc_response += "F|RANGE ERROR!"
-                        else:
-                            persons = dbcur.fetchall()
-                            person =  persons[order]
-                            name = utoa(person[0].upper())
-                            surname = utoa(person[1].upper())
-                            card_data = person[2]
-                            enterance_permission = str(person[3])
-                            soc_response += name + ' ' + surname + '|' + card_data + '|' + enterance_permission
-                    elif soc_received.startswith("{count}"):
-                        dbcur.execute("SELECT COUNT(*) FROM persons WHERE card_data IS NOT NULL;")
-                        db.commit()
-                        count = str(dbcur.fetchall()[0][0])
-                        allList = ""
-                        dbcur.execute("SELECT name, surname, card_data, enterance_permission FROM persons WHERE card_data IS NOT NULL ORDER BY enterance_permission DESC, name;")
-                        db.commit()
-                        persons = dbcur.fetchall()
-                        for person in persons:
-                            name = utoa(person[0].upper())
-                            surname = utoa(person[1].upper())
-                            card_data = person[2]
-                            enterance_permission = str(person[3])
-                            allList += '[' + name + ' ' + surname + '|' + card_data + '|' + enterance_permission + ']'
-                        m = hashlib.md5()
-                        m.update(allList)
-                        soc_response += count + '|' + m.hexdigest()
+                    # elif soc_received.startswith("{all}"): 
+                    #     dbcur.execute("SELECT name, surname, card_data, enterance_permission FROM persons WHERE card_data IS NOT NULL ORDER BY enterance_permission DESC, name;")
+                    #     db.commit()
+                    #     persons = dbcur.fetchall()
+                    #     for person in persons:
+                    #         name = utoa(person[0].upper())
+                    #         surname = utoa(person[1].upper())
+                    #         card_data = utoa(person[2])
+                    #         enterance_permission = str(person[3])
+                    #         soc_response += '[' + name + ' ' + surname + '|' + card_data + '|' + enterance_permission + ']'
+                    # elif soc_received.startswith("{list["):
+                    #     dbcur.execute("SELECT name, surname, card_data, enterance_permission FROM persons WHERE card_data IS NOT NULL ORDER BY enterance_permission DESC, name;")
+                    #     db.commit()
+                    #     size = dbcur.rowcount
+                    #     order = int(soc_received.split("[")[1].split("]")[0])
+                    #     if size <= order:
+                    #         soc_response += "F|RANGE ERROR!"
+                    #     else:
+                    #         persons = dbcur.fetchall()
+                    #         person =  persons[order]
+                    #         name = utoa(person[0].upper())
+                    #         surname = utoa(person[1].upper())
+                    #         card_data = person[2]
+                    #         enterance_permission = str(person[3])
+                    #         soc_response += name + ' ' + surname + '|' + card_data + '|' + enterance_permission
+                    # elif soc_received.startswith("{count}"):
+                    #     dbcur.execute("SELECT COUNT(*) FROM persons WHERE card_data IS NOT NULL;")
+                    #     db.commit()
+                    #     count = str(dbcur.fetchall()[0][0])
+                    #     allList = ""
+                    #     dbcur.execute("SELECT name, surname, card_data, enterance_permission FROM persons WHERE card_data IS NOT NULL ORDER BY enterance_permission DESC, name;")
+                    #     db.commit()
+                    #     persons = dbcur.fetchall()
+                    #     for person in persons:
+                    #         name = utoa(person[0].upper())
+                    #         surname = utoa(person[1].upper())
+                    #         card_data = person[2]
+                    #         enterance_permission = str(person[3])
+                    #         allList += '[' + name + ' ' + surname + '|' + card_data + '|' + enterance_permission + ']'
+                    #     m = hashlib.md5()
+                    #     m.update(allList)
+                    #     soc_response += count + '|' + m.hexdigest()
                     elif soc_received.startswith("{time}"):
                         soc_response += time.strftime("%H:%M:%S/%d-%m-%Y")
-                    elif soc_received.startswith("{help}"):
-                        soc_response += """
-open(CARD_DATA)   : istenilen kart icin kisi bilgisini ve izin bilgisini verir. 
-add(NEW_CARD_DATA): yeni kart ekler, kart varsa hata verir, yalnizca hexdecimal buyuk harf karakter kabul eder. 
-list[INDEX]       : listenin index sirasindaki elemanini verir, index disiysa hata verir.
-all               : tum listeyi verir
-count             : listedeki eleman sayisini ve listenin hash bilgisini verir.
-time              : guncel tarih ve zamani verir.
-"""
+#                     elif soc_received.startswith("{help}"):
+#                         soc_response += """
+# open(CARD_DATA)   : istenilen kart icin kisi bilgisini ve izin bilgisini verir. 
+# add(NEW_CARD_DATA): yeni kart ekler, kart varsa hata verir, yalnizca hexdecimal buyuk harf karakter kabul eder. 
+# list[INDEX]       : listenin index sirasindaki elemanini verir, index disiysa hata verir.
+# all               : tum listeyi verir
+# count             : listedeki eleman sayisini ve listenin hash bilgisini verir.
+# time              : guncel tarih ve zamani verir.
+# """
                     else:
                         soc_response += "F|WRONG PARAMETER!"
                         logger.warning('Wrong parameter')
@@ -227,16 +235,17 @@ time              : guncel tarih ve zamani verir.
                     soc_response = "{F|ERROR!}"
                     logger.error('Unecpected error :' + repr(e))
                 finally:
-                    soc_response = soc_response.upper()
-                    conn.sendall(soc_response)
-                    logger.info('Sended: %s', soc_response)
-                    logger.info('Connection closed')
-                    try:
-                        conn.close()
-                        dbcur.close()
-                        db.close()
-                    except Exception, e:
-                        pass
+                    if(access_permit):
+                        soc_response = soc_response.upper()
+                        conn.sendall(soc_response)
+                        logger.info('Sended: %s', soc_response)
+                        logger.info('Connection closed')
+                        try:
+                            conn.close()
+                            dbcur.close()
+                            db.close()
+                        except Exception, e:
+                            pass
         except Exception, e:
             logger.error('Unecpected error: ' + repr(e))
             logger.info('Server will restart')
